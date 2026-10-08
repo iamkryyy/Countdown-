@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Monthly Revenue</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0A0A0A;
+  --gold:#BF9749;
+  --ink:#FFFFFF;
+  --ink-2:#B8B3A8;
+  --ink-3:#7C7870;
+  --hair:rgba(191,151,73,.28);
+  --metal:linear-gradient(180deg,#FFF4CA 0%,#E9C776 17%,#C69C4C 36%,#7C6126 56%,#AA833A 72%,#E2C176 88%,#F8E7B2 100%);
+  --metal-x:linear-gradient(90deg,#7C6126 0%,#C69C4C 30%,#E9C776 60%,#FFF4CA 85%,#E2C176 100%);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--ink);font-family:"Inter","Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased}
+body{min-height:100vh;padding:20px 18px 16px;
+  background:radial-gradient(ellipse 60% 200px at 50% 44px,#181818 0%,#121212 45%,var(--bg) 100%) no-repeat,var(--bg)}
+.wrap{max-width:520px;margin:0 auto;text-align:center}
+.coin{position:relative;overflow:hidden;width:46px;height:46px;margin:0 auto 12px;border-radius:50%;box-shadow:0 0 20px 3px rgba(255,255,255,.07),0 0 2px rgba(255,255,255,.12)}
+.coin img{position:absolute;width:68.07px;height:68.07px;left:-11.03px;top:-10.90px}
+.title{font-weight:700;font-size:clamp(20px,5.2vw,30px);letter-spacing:-.069em;line-height:1}
+.title b{font-weight:700;color:var(--gold)}
+.rule{width:clamp(56px,11vw,110px);height:1px;background:linear-gradient(90deg,transparent,var(--gold),transparent);margin:12px auto 14px}
+.amount{position:relative;display:inline-block;font-weight:700;font-size:clamp(40px,13vw,72px);letter-spacing:-.045em;line-height:1;
+  background:var(--metal);-webkit-background-clip:text;background-clip:text;color:transparent;font-variant-numeric:tabular-nums}
+.amount::after{content:"";position:absolute;z-index:-1;left:10%;right:10%;top:5%;height:75%;
+  background:radial-gradient(ellipse at center,rgba(191,151,73,.16) 0%,rgba(191,151,73,0) 70%);filter:blur(8px)}
+.lbl{display:block;margin-top:9px;font-weight:700;font-size:10.5px;letter-spacing:.28em;padding-left:.28em;text-transform:uppercase;color:var(--ink-3)}
+.bar{margin:18px 0 7px;height:8px;border-radius:999px;background:rgba(191,151,73,.12);overflow:hidden;box-shadow:inset 0 0 0 1px rgba(191,151,73,.18)}
+.fill{height:100%;width:0;border-radius:999px;background:var(--metal-x);transition:width 1.1s cubic-bezier(.2,.7,.2,1)}
+.barrow{display:flex;justify-content:space-between;font-weight:500;font-size:11.5px;letter-spacing:.06em;color:var(--ink-2)}
+.barrow b{color:var(--gold);font-weight:700}
+.stats{display:grid;grid-template-columns:1fr 1px 1fr;align-items:center;margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.06)}
+.sep{height:34px;background:var(--hair)}
+.stat .v{font-weight:700;font-size:clamp(18px,5vw,24px);letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.stat .k{display:block;margin-top:6px;font-weight:700;font-size:10px;letter-spacing:.26em;padding-left:.26em;text-transform:uppercase;color:var(--ink-3)}
+.foot{margin-top:14px;font-size:10.5px;color:var(--ink-3);letter-spacing:.04em}
+.warn{color:#d9a35a}
+.err{color:var(--ink-2);font-size:13px;line-height:1.6;border:1px dashed var(--hair);border-radius:12px;padding:16px;margin-top:6px}
+@media (prefers-reduced-motion:reduce){.fill{transition:none}}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="coin"><img src="../calls/assets/coin-source.png" alt="1% Academy"></div>
+  <h1 class="title" id="title">Monthly <b>Revenue</b></h1>
+  <div class="rule" aria-hidden="true"></div>
+  <div id="body">
+    <div class="amount" id="amount">$0</div>
+    <span class="lbl">Month to date</span>
+    <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="bar"><div class="fill" id="fill"></div></div>
+    <div class="barrow"><span><b id="pct">0%</b> of goal</span><span id="goal">$100,000</span></div>
+    <div class="stats">
+      <div class="stat"><div class="v" id="today">$0</div><span class="k">Today</span></div>
+      <div class="sep" aria-hidden="true"></div>
+      <div class="stat"><div class="v" id="togo">$0</div><span class="k">To $100K</span></div>
+    </div>
+  </div>
+  <p class="foot" id="foot"></p>
+</main>
+<script>
+const TZ = "America/Chicago";
+const SRC = "https://raw.githubusercontent.com/iamkryyy/Countdown-/main/revenue/data.json";
+const fmt = (n) => "$" + Math.round(n).toLocaleString("en-US");
+const b64 = (s) => { s = s.replace(/-/g,"+").replace(/_/g,"/"); while (s.length % 4) s += "="; return Uint8Array.from(atob(s), c => c.charCodeAt(0)); };
+const nowParts = () => Object.fromEntries(new Intl.DateTimeFormat("en-US",{timeZone:TZ,year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date()).map(p=>[p.type,p.value]));
+let shown = 0, firstPaint = true;
+
+function countTo(el, to){
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!firstPaint || reduce){ el.textContent = fmt(to); return; }
+  const from = 0, t0 = performance.now(), dur = 1100;
+  const step = (t) => { const k = Math.min(1,(t-t0)/dur), e = 1-Math.pow(1-k,3); el.textContent = fmt(from+(to-from)*e); if (k<1) requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+}
+
+function render(d){
+  const p = nowParts(), month = `${p.year}-${p.month}`, today = `${p.year}-${p.month}-${p.day}`;
+  const fresh = d.month === month;
+  const mtd = fresh ? d.mtd : 0;
+  const todayTotal = fresh && d.today === today ? d.todayTotal : 0;
+  const goal = d.goal || 100000;
+  const monthName = new Intl.DateTimeFormat("en-US",{timeZone:TZ,month:"long"}).format(new Date());
+  document.getElementById("title").innerHTML = `${monthName} <b>Revenue</b>`;
+  countTo(document.getElementById("amount"), mtd);
+  const pct = Math.min(100, mtd / goal * 100);
+  document.getElementById("fill").style.width = pct.toFixed(1) + "%";
+  document.getElementById("bar").setAttribute("aria-valuenow", Math.round(pct));
+  document.getElementById("pct").textContent = (pct >= 10 ? Math.round(pct) : pct.toFixed(1)) + "%";
+  document.getElementById("goal").textContent = fmt(goal);
+  document.getElementById("togo").textContent = mtd >= goal ? "Hit" : fmt(goal - mtd);
+  document.getElementById("today").textContent = fmt(todayTotal);
+  const foot = document.getElementById("foot");
+  foot.innerHTML = (d.updated ? "Updated " + d.updated : "") +
+    (fresh && d.partial ? ` · <span class="warn">${d.partial} didn't load this update</span>` : "");
+  firstPaint = false;
+}
+
+async function load(){
+  const key = new URLSearchParams(location.hash.slice(1)).get("k");
+  const body = document.getElementById("body");
+  if (!key){ body.innerHTML = '<p class="err">This widget needs its private key. Use the full embed link.</p>'; return; }
+  try{
+    const r = await fetch(SRC + "?t=" + Date.now(), {cache:"no-store"});
+    if (!r.ok) throw 0;
+    const box = await r.json();
+    const ck = await crypto.subtle.importKey("raw", b64(key), "AES-GCM", false, ["decrypt"]);
+    const plain = await crypto.subtle.decrypt({name:"AES-GCM", iv:b64(box.iv)}, ck, b64(box.ct));
+    render(JSON.parse(new TextDecoder().decode(plain)));
+  }catch(e){
+    if (firstPaint) document.getElementById("foot").textContent = "Revenue hasn't loaded yet. It updates every 15 minutes.";
+  }
+}
+load();
+setInterval(load, 2 * 60 * 1000);
+</script>
+</body>
+</html>
