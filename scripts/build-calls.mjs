@@ -158,26 +158,50 @@ async function fathomGet(url) {
   }
   throw new Error("Fathom: still rate-limited after retries");
 }
-async function lastFathomCall(email, before) {
-  const since = new Date(Date.now() - 150 * 864e5).toISOString();
-  let cursor = null, best = null;
-  for (let page = 0; page < 5; page++) {
-    const q = new URLSearchParams({ "calendar_invitees[]": email, created_after: since, include_summary: "true", include_action_items: "true" });
+// Fathom's list endpoint does not reliably filter by invitee, so fetch recent
+// meetings once per run and match each client locally. Never use a call that
+// doesn't clearly include the client.
+let meetingCache = null;
+async function recentMeetings() {
+  if (meetingCache) return meetingCache;
+  const since = new Date(Date.now() - 60 * 864e5).toISOString();
+  const all = [];
+  let cursor = null;
+  for (let page = 0; page < 15; page++) {
+    const q = new URLSearchParams({ created_after: since, include_summary: "true", include_action_items: "true" });
     if (cursor) q.set("cursor", cursor);
     const j = await fathomGet("https://api.fathom.ai/external/v1/meetings?" + q);
-    for (const m of j.items || j.meetings || []) {
-      const when = m.recording_start_time || m.scheduled_start_time || m.created_at;
-      if (!when || new Date(when) >= new Date(before)) continue;
-      if (/group call/i.test(m.title || m.meeting_title || "")) continue;
-      if (!best || new Date(when) > new Date(best.when)) best = { ...m, when };
-    }
+    all.push(...(j.items || j.meetings || []));
     cursor = j.next_cursor;
     if (!cursor) break;
   }
+  log(`Fathom: ${all.length} recent meetings loaded`);
+  meetingCache = all;
+  return all;
+}
+const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9@.]+/g, " ").trim();
+function meetingIncludes(m, email, name) {
+  const inv = m.calendar_invitees || m.invitees || [];
+  const em = email.toLowerCase();
+  if (inv.some((i) => String(i.email || "").toLowerCase() === em)) return true;
+  const n = norm(name);
+  if (n.split(" ").length < 2) return false; // need a full name to match safely
+  if (inv.some((i) => norm(i.name) === n)) return true;
+  return norm(m.title || m.meeting_title).includes(n);
+}
+async function lastFathomCall(email, name, before) {
+  const meetings = await recentMeetings();
+  let best = null;
+  for (const m of meetings) {
+    const when = m.recording_start_time || m.scheduled_start_time || m.created_at;
+    if (!when || new Date(when) >= new Date(before)) continue;
+    if (/group call/i.test(m.title || m.meeting_title || "")) continue;
+    if (!meetingIncludes(m, email, name)) continue;
+    if (!best || new Date(when) > new Date(best.when)) best = { ...m, when };
+  }
   if (!best) return null;
-  const summary0 = best.default_summary?.markdown_formatted || best.summary?.markdown_formatted || best.summary || "";
-  if (!String(summary0).trim() && !(best.action_items || []).length) throw new Error("Fathom: last call has no summary or action items yet");
   const summary = best.default_summary?.markdown_formatted || best.summary?.markdown_formatted || best.summary || "";
+  if (!String(summary).trim() && !(best.action_items || []).length) throw new Error("Fathom: last call has no summary or action items yet");
   const actions = (best.action_items || []).map((a) => a.description || a.text || "").filter(Boolean);
   return { url: best.share_url || best.url || "", urls: [best.share_url, best.url].filter(Boolean), when: best.when, title: best.title || best.meeting_title || "", summary: String(summary), actions };
 }
