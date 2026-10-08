@@ -323,7 +323,7 @@ async function main() {
         out.movers = parseMovers(client.movers);
         if (ENV.FATHOM_API_KEY && ENV.ANTHROPIC_API_KEY) {
           try {
-            const last = await lastFathomCall(ev.guest.email, ev.start);
+            const last = await lastFathomCall(ev.guest.email, out.name, ev.start);
             if (last && last.url && !last.urls.includes(client.recording)) {
               out.movers = await makeMovers(out.name, last, clientFormNotes(ev.description));
               await saveMovers(client.id, out.movers, last.url, last.when);
