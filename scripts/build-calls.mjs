@@ -199,7 +199,7 @@ ${call.actions.join("\n").slice(0, 3000)}`;
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "x-api-key": ENV.ANTHROPIC_API_KEY.trim(), "anthropic-version": "2023-06-01", "content-type": "application/json" },
-    body: JSON.stringify({ model: MODEL, max_tokens: 600, messages: [{ role: "user", content: prompt }] }),
+    body: JSON.stringify({ model: MODEL, max_tokens: 4000, messages: [{ role: "user", content: prompt }] }),
   });
   if (!r.ok) throw new Error("Claude: HTTP " + r.status + " " + (await r.text()).slice(0, 160));
   const j = await r.json();
