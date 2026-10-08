@@ -1,0 +1,50 @@
+name: Today's Calls
+
+on:
+  schedule:
+    # Every 30 minutes from 4:00 AM to ~9:30 PM Central (times are UTC).
+    - cron: "*/30 9-23 * * *"
+    - cron: "*/30 0-2 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: todays-calls
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install calendar reader
+        run: npm install --no-save --no-package-lock node-ical@0.27.1
+
+      - name: Build today's calls
+        run: node scripts/build-calls.mjs
+        env:
+          ICAL_URL: ${{ secrets.ICAL_URL }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          FATHOM_API_KEY: ${{ secrets.FATHOM_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CALLS_KEY: ${{ secrets.CALLS_KEY }}
+
+      - name: Publish if changed
+        run: |
+          if git diff --quiet -- calls/data.json calls/data.hash && [ -z "$(git ls-files --others --exclude-standard calls/data.hash)" ]; then
+            echo "Nothing new."
+            exit 0
+          fi
+          git config user.name "todays-calls-bot"
+          git config user.email "todays-calls-bot@users.noreply.github.com"
+          git add calls/data.json calls/data.hash
+          git commit -m "Update today's calls"
+          git push
