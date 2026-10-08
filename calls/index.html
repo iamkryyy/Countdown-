@@ -24,7 +24,9 @@ html,body{background:var(--bg);color:var(--ink);font-family:"Figtree",system-ui,
 body{
   min-height:100vh;
   padding:20px 16px 18px;
+  background:radial-gradient(ellipse 60% 210px at 50% 46px,#181818 0%,#121212 45%,var(--bg) 100%) no-repeat,var(--bg);
 }
+.coin{position:relative;overflow:hidden;width:54px;height:54px;margin:0 auto 12px;border-radius:50%;box-shadow:0 0 22px 3px rgba(255,255,255,.07),0 0 2px rgba(255,255,255,.12)}
 .wrap{max-width:620px;margin:0 auto}
 .title{font-family:"Inter",sans-serif;font-weight:700;font-size:clamp(24px,5vw,34px);letter-spacing:-.069em;text-align:center;line-height:1}
 .title b{font-weight:700;color:var(--gold)}
@@ -51,10 +53,12 @@ li::before{content:counter(n);font-family:"Inter",sans-serif;font-weight:700;fon
 .empty{text-align:center;color:var(--ink-2);font-size:15px;line-height:1.6;margin-top:26px;border:1px dashed var(--line);border-radius:14px;padding:22px}
 .foot{text-align:center;font-size:11px;color:var(--ink-3);margin-top:12px;letter-spacing:.04em}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+.coin img{position:absolute;width:79.91px;height:79.91px;left:-12.95px;top:-12.80px}
 </style>
 </head>
 <body>
 <main class="wrap">
+  <div class="coin"><img src="assets/coin-source.png" alt="1% Academy"></div>
   <h1 class="title">Today's <b>Calls</b></h1>
   <div class="rule" aria-hidden="true"></div>
   <div class="dots" id="dots" aria-hidden="true"></div>
