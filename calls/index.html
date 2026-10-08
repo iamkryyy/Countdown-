@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Today's Calls</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0A0A0A;
+  --gold:#BF9749;
+  --gold-hi:#E9C776;
+  --ink:#FFFFFF;
+  --ink-2:#B8B3A8;
+  --ink-3:#7C7870;
+  --line:rgba(191,151,73,.18);
+  --metal:linear-gradient(180deg,#FFF4CA 0%,#E9C776 17%,#C69C4C 36%,#7C6126 56%,#AA833A 72%,#E2C176 88%,#F8E7B2 100%);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--ink);font-family:"Figtree",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+body{
+  min-height:100vh;
+  padding:34px 26px 30px;
+}
+.wrap{max-width:620px;margin:0 auto}
+.title{font-family:"Inter",sans-serif;font-weight:700;font-size:clamp(28px,6vw,44px);letter-spacing:-.069em;text-align:center;line-height:1}
+.title b{font-weight:700;color:var(--gold)}
+.rule{width:clamp(56px,11vw,120px);height:1px;background:linear-gradient(90deg,transparent,var(--gold),transparent);margin:18px auto 24px}
+.dots{display:flex;justify-content:center;flex-wrap:wrap;gap:14px}
+.dot{width:20px;height:20px;border-radius:50%;background:var(--metal)}
+.dot.done{background:transparent;border:1.5px solid rgba(191,151,73,.42)}
+.dot.next{box-shadow:0 0 0 4px var(--bg),0 0 0 5.5px var(--gold)}
+.count{text-align:center;font-family:"Inter",sans-serif;font-weight:700;font-size:11px;letter-spacing:.28em;padding-left:.28em;color:var(--ink-3);margin-top:14px;text-transform:uppercase}
+.list{margin-top:26px;display:flex;flex-direction:column;gap:14px}
+.card{border:1px solid var(--line);border-radius:14px;padding:18px 20px 16px;background:rgba(255,255,255,.015)}
+.card.next{border-color:rgba(191,151,73,.6);background:rgba(191,151,73,.04)}
+.card.done{opacity:.45}
+.top{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.name{font-family:"Inter",sans-serif;font-weight:700;font-size:19px;letter-spacing:-.02em;color:var(--gold-hi);text-decoration:none;border-bottom:1px solid transparent;transition:border-color .15s}
+.name:hover,.name:focus-visible{border-bottom-color:var(--gold);outline:none}
+.card.done .name{color:var(--ink-2)}
+.time{font-family:"Inter",sans-serif;font-weight:500;font-size:12px;letter-spacing:.14em;color:var(--ink-2);white-space:nowrap}
+.tag{display:inline-block;margin-left:8px;font-size:10px;letter-spacing:.18em;color:var(--gold);border:1px solid rgba(191,151,73,.45);border-radius:999px;padding:2px 8px;vertical-align:3px;font-family:"Inter",sans-serif;font-weight:500;text-transform:uppercase}
+ol{list-style:none;margin-top:12px;counter-reset:n}
+li{counter-increment:n;display:grid;grid-template-columns:22px 1fr;gap:4px;font-size:14.5px;line-height:1.5;color:var(--ink);padding:5px 0}
+li+li{border-top:1px solid rgba(255,255,255,.04)}
+li::before{content:counter(n);font-family:"Inter",sans-serif;font-weight:700;font-size:13px;color:var(--gold);padding-top:2px}
+.empty{text-align:center;color:var(--ink-2);font-size:15px;line-height:1.6;margin-top:26px;border:1px dashed var(--line);border-radius:14px;padding:22px}
+.foot{text-align:center;font-size:11px;color:var(--ink-3);margin-top:20px;letter-spacing:.04em}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <h1 class="title">Today's <b>Calls</b></h1>
+  <div class="rule" aria-hidden="true"></div>
+  <div class="dots" id="dots" aria-hidden="true"></div>
+  <p class="count" id="count">&nbsp;</p>
+  <section class="list" id="list" aria-live="polite"></section>
+  <p class="foot" id="foot"></p>
+</main>
+<script>
+const TZ = "America/Chicago";
+const CALL_MINUTES = 45;
+
+function b64ToBytes(s){
+  s = s.replace(/-/g,"+").replace(/_/g,"/");
+  while (s.length % 4) s += "=";
+  return Uint8Array.from(atob(s), c => c.charCodeAt(0));
+}
+function todayInTZ(){
+  return new Intl.DateTimeFormat("en-CA",{timeZone:TZ,year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+}
+function fmtTime(iso){
+  return new Intl.DateTimeFormat("en-US",{timeZone:TZ,hour:"numeric",minute:"2-digit"}).format(new Date(iso));
+}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+
+async function load(){
+  const key = new URLSearchParams(location.hash.slice(1)).get("k");
+  if (!key) return show(null, "This widget needs its private key. Use the full embed link from your setup.");
+  try{
+    const res = await fetch("data.json?t=" + Date.now(), {cache:"no-store"});
+    if (!res.ok) throw new Error("fetch");
+    const box = await res.json();
+    const ck = await crypto.subtle.importKey("raw", b64ToBytes(key), "AES-GCM", false, ["decrypt"]);
+    const plain = await crypto.subtle.decrypt({name:"AES-GCM", iv:b64ToBytes(box.iv)}, ck, b64ToBytes(box.ct));
+    show(JSON.parse(new TextDecoder().decode(plain)));
+  }catch(e){
+    show(null, "Couldn't load today's calls. Check that the embed link includes the full key.");
+  }
+}
+
+function show(data, error){
+  const dots = document.getElementById("dots"), list = document.getElementById("list"),
+        count = document.getElementById("count"), foot = document.getElementById("foot");
+  dots.innerHTML = ""; list.innerHTML = "";
+  if (error){ list.innerHTML = `<p class="empty">${esc(error)}</p>`; count.innerHTML="&nbsp;"; return; }
+
+  const isToday = data.date === todayInTZ();
+  const calls = isToday ? (data.calls || []).slice().sort((a,b)=>new Date(a.start)-new Date(b.start)) : [];
+  if (!calls.length){
+    count.textContent = "0 calls";
+    list.innerHTML = `<p class="empty">No calls on the calendar today. Open time is build time.</p>`;
+    foot.textContent = data.updated ? "Updated " + data.updated : "";
+    return;
+  }
+
+  const now = Date.now();
+  const doneOf = c => now > new Date(c.end || (new Date(c.start).getTime() + CALL_MINUTES*60000)).getTime();
+  const nextIdx = calls.findIndex(c => !doneOf(c));
+
+  calls.forEach((c,i) => {
+    const state = doneOf(c) ? "done" : (i === nextIdx ? "next" : "");
+    const d = document.createElement("span");
+    d.className = "dot " + state; dots.appendChild(d);
+
+    const card = document.createElement("article");
+    card.className = "card " + state;
+    const nameHtml = c.url
+      ? `<a class="name" href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.name)}</a>`
+      : `<span class="name">${esc(c.name)}</span>`;
+    const tag = c.type === "Sales" ? `<span class="tag">Sales</span>` : "";
+    const items = (c.movers || []).slice(0,4).map(m => `<li>${esc(m)}</li>`).join("");
+    card.innerHTML = `<div class="top"><div>${nameHtml}${tag}</div><span class="time">${fmtTime(c.start)}</span></div><ol>${items}</ol>`;
+    list.appendChild(card);
+  });
+
+  const left = calls.filter(c => !doneOf(c)).length;
+  count.textContent = `${calls.length} ${calls.length === 1 ? "call" : "calls"}` + (left < calls.length ? ` \u00b7 ${left} left` : "");
+  foot.textContent = data.updated ? "Updated " + data.updated : "";
+}
+
+load();
+setInterval(load, 5 * 60 * 1000);
+</script>
+</body>
+</html>
