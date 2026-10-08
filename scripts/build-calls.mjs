@@ -99,7 +99,7 @@ function fromScriptFeed(text) {
 async function notion(path, method = "GET", body) {
   const r = await fetch("https://api.notion.com/v1" + path, {
     method,
-    headers: { Authorization: "Bearer " + ENV.NOTION_TOKEN, "Notion-Version": "2022-06-28", "Content-Type": "application/json" },
+    headers: { Authorization: "Bearer " + ENV.NOTION_TOKEN.trim(), "Notion-Version": "2022-06-28", "Content-Type": "application/json" },
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!r.ok) throw new Error(`Notion ${method} ${path} -> ${r.status}`);
@@ -137,15 +137,34 @@ const parseMovers = (txt) =>
   String(txt || "").split(/\n+/).map((l) => l.replace(/^\s*\d+[.)]\s*/, "").trim()).filter(Boolean).slice(0, 4);
 
 // ---------- fathom ----------
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+let lastFathom = 0;
+async function fathomGet(url) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const wait = 1500 - (Date.now() - lastFathom);
+    if (wait > 0) await sleep(wait);
+    lastFathom = Date.now();
+    const r = await fetch(url, { headers: { "X-Api-Key": ENV.FATHOM_API_KEY.trim() } });
+    if (r.status === 429) {
+      const ra = Number(r.headers.get("retry-after")) || 20 * (attempt + 1);
+      log(`Fathom asked to slow down; waiting ${Math.min(ra, 65)}s`);
+      await sleep(Math.min(ra, 65) * 1000);
+      continue;
+    }
+    if (!r.ok) throw new Error("Fathom: HTTP " + r.status);
+    const text = await r.text();
+    if (!text.trim()) throw new Error("Fathom: empty reply");
+    try { return JSON.parse(text); } catch { throw new Error("Fathom: reply was not JSON (" + text.length + " chars)"); }
+  }
+  throw new Error("Fathom: still rate-limited after retries");
+}
 async function lastFathomCall(email, before) {
   const since = new Date(Date.now() - 150 * 864e5).toISOString();
   let cursor = null, best = null;
   for (let page = 0; page < 5; page++) {
     const q = new URLSearchParams({ "calendar_invitees[]": email, created_after: since, include_summary: "true", include_action_items: "true" });
     if (cursor) q.set("cursor", cursor);
-    const r = await fetch("https://api.fathom.ai/external/v1/meetings?" + q, { headers: { "X-Api-Key": ENV.FATHOM_API_KEY } });
-    if (!r.ok) throw new Error("Fathom -> " + r.status);
-    const j = await r.json();
+    const j = await fathomGet("https://api.fathom.ai/external/v1/meetings?" + q);
     for (const m of j.items || j.meetings || []) {
       const when = m.recording_start_time || m.scheduled_start_time || m.created_at;
       if (!when || new Date(when) >= new Date(before)) continue;
@@ -156,6 +175,8 @@ async function lastFathomCall(email, before) {
     if (!cursor) break;
   }
   if (!best) return null;
+  const summary0 = best.default_summary?.markdown_formatted || best.summary?.markdown_formatted || best.summary || "";
+  if (!String(summary0).trim() && !(best.action_items || []).length) throw new Error("Fathom: last call has no summary or action items yet");
   const summary = best.default_summary?.markdown_formatted || best.summary?.markdown_formatted || best.summary || "";
   const actions = (best.action_items || []).map((a) => a.description || a.text || "").filter(Boolean);
   return { url: best.share_url || best.url || "", urls: [best.share_url, best.url].filter(Boolean), when: best.when, title: best.title || best.meeting_title || "", summary: String(summary), actions };
@@ -177,14 +198,17 @@ ACTION ITEMS:
 ${call.actions.join("\n").slice(0, 3000)}`;
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
-    headers: { "x-api-key": ENV.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+    headers: { "x-api-key": ENV.ANTHROPIC_API_KEY.trim(), "anthropic-version": "2023-06-01", "content-type": "application/json" },
     body: JSON.stringify({ model: MODEL, max_tokens: 600, messages: [{ role: "user", content: prompt }] }),
   });
-  if (!r.ok) throw new Error("Claude -> " + r.status + " " + (await r.text()).slice(0, 200));
+  if (!r.ok) throw new Error("Claude: HTTP " + r.status + " " + (await r.text()).slice(0, 160));
   const j = await r.json();
   const text = (j.content || []).map((c) => c.text || "").join("").replace(/```json|```/g, "").trim();
-  const arr = JSON.parse(text.slice(text.indexOf("["), text.lastIndexOf("]") + 1));
-  if (!Array.isArray(arr) || !arr.length) throw new Error("Claude returned no list");
+  const a = text.indexOf("["), b = text.lastIndexOf("]");
+  if (a < 0 || b < a) throw new Error(`Claude: reply had no list (stop: ${j.stop_reason}, ${text.length} chars)`);
+  let arr;
+  try { arr = JSON.parse(text.slice(a, b + 1)); } catch { throw new Error("Claude: list was not valid JSON"); }
+  if (!Array.isArray(arr) || !arr.length) throw new Error("Claude: empty list");
   return arr.slice(0, 4).map((s) => String(s).trim());
 }
 
@@ -229,7 +253,9 @@ function nameFromSummary(summary, guest) {
 const b64u = (buf) => Buffer.from(buf).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 const fromB64u = (s) => Buffer.from(s.replace(/-/g, "+").replace(/_/g, "/"), "base64");
 async function encrypt(obj) {
-  const key = await webcrypto.subtle.importKey("raw", fromB64u(ENV.CALLS_KEY), "AES-GCM", false, ["encrypt"]);
+  const raw = fromB64u(ENV.CALLS_KEY.trim().replace(/^k=/, ""));
+  if (raw.length !== 32) throw new Error(`CALLS_KEY is the wrong value (decodes to ${raw.length} bytes, expected 32). Re-paste it exactly.`);
+  const key = await webcrypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt"]);
   const iv = webcrypto.getRandomValues(new Uint8Array(12));
   const ct = await webcrypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(JSON.stringify(obj)));
   return { iv: b64u(iv), ct: b64u(ct) };
@@ -239,8 +265,9 @@ async function encrypt(obj) {
 async function main() {
   for (const k of ["ICAL_URL", "NOTION_TOKEN", "CALLS_KEY"]) if (!ENV[k]) throw new Error(`Missing secret ${k}`);
   const now = new Date(), today = dayKey(now);
+  if (fromB64u(ENV.CALLS_KEY.trim().replace(/^k=/, "")).length !== 32) throw new Error("CALLS_KEY is the wrong value. Re-paste it exactly from the setup instructions.");
 
-  const icsRes = await fetch(ENV.ICAL_URL);
+  const icsRes = await fetch(ENV.ICAL_URL.trim());
   if (!icsRes.ok) throw new Error("Calendar feed -> " + icsRes.status);
   const feedText = await icsRes.text();
   const parsed = feedText.trim().startsWith("{") ? fromScriptFeed(feedText) : ical.sync.parseICS(feedText);
