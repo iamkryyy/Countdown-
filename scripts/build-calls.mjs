@@ -224,8 +224,19 @@ async function main() {
 
   const icsRes = await fetch(ENV.ICAL_URL);
   if (!icsRes.ok) throw new Error("Calendar feed -> " + icsRes.status);
-  const events = todaysCalls(ical.sync.parseICS(await icsRes.text()), today);
+  const icsText = await icsRes.text();
+  const parsed = ical.sync.parseICS(icsText);
+  const all = Object.values(parsed).filter((e) => e && e.type === "VEVENT");
+  const todayAll = all.flatMap((e) => occurrencesToday(e, today));
+  log(`feed: ${all.length} events total, ${all.filter((e) => e.attendee).length} with guest lists, ` +
+      `${all.filter((e) => /^busy$/i.test(String(e.summary || "").trim())).length} titled "Busy", ` +
+      `${all.filter((e) => e.description).length} with descriptions; today: ${todayAll.length} events, ` +
+      `${todayAll.filter((e) => e.attendee).length} with guests`);
+  const events = todaysCalls(parsed, today);
   log(`${events.length} call(s) on ${today}`);
+  if (!events.length && all.length > 20 && !all.some((e) => e.attendee)) {
+    throw new Error("Calendar feed has no guest lists at all. It is probably the public/busy-only address, not the secret iCal address. Leaving the widget unchanged.");
+  }
 
   const calls = [];
   for (const ev of events) {
