@@ -23,33 +23,33 @@
 html,body{background:var(--bg);color:var(--ink);font-family:"Figtree",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
 body{
   min-height:100vh;
-  padding:34px 26px 30px;
+  padding:20px 16px 18px;
 }
 .wrap{max-width:620px;margin:0 auto}
-.title{font-family:"Inter",sans-serif;font-weight:700;font-size:clamp(28px,6vw,44px);letter-spacing:-.069em;text-align:center;line-height:1}
+.title{font-family:"Inter",sans-serif;font-weight:700;font-size:clamp(24px,5vw,34px);letter-spacing:-.069em;text-align:center;line-height:1}
 .title b{font-weight:700;color:var(--gold)}
-.rule{width:clamp(56px,11vw,120px);height:1px;background:linear-gradient(90deg,transparent,var(--gold),transparent);margin:18px auto 24px}
-.dots{display:flex;justify-content:center;flex-wrap:wrap;gap:14px}
-.dot{width:20px;height:20px;border-radius:50%;background:var(--metal)}
+.rule{width:clamp(56px,11vw,120px);height:1px;background:linear-gradient(90deg,transparent,var(--gold),transparent);margin:12px auto 14px}
+.dots{display:flex;justify-content:center;flex-wrap:wrap;gap:11px}
+.dot{width:15px;height:15px;border-radius:50%;background:var(--metal)}
 .dot.done{background:transparent;border:1.5px solid rgba(191,151,73,.42)}
-.dot.next{box-shadow:0 0 0 4px var(--bg),0 0 0 5.5px var(--gold)}
-.count{text-align:center;font-family:"Inter",sans-serif;font-weight:700;font-size:11px;letter-spacing:.28em;padding-left:.28em;color:var(--ink-3);margin-top:14px;text-transform:uppercase}
-.list{margin-top:26px;display:flex;flex-direction:column;gap:14px}
-.card{border:1px solid var(--line);border-radius:14px;padding:18px 20px 16px;background:rgba(255,255,255,.015)}
+.dot.next{box-shadow:0 0 0 3px var(--bg),0 0 0 4.5px var(--gold)}
+.count{text-align:center;font-family:"Inter",sans-serif;font-weight:700;font-size:11px;letter-spacing:.28em;padding-left:.28em;color:var(--ink-3);margin-top:9px;text-transform:uppercase}
+.list{margin-top:16px;display:flex;flex-direction:column;gap:9px}
+.card{border:1px solid var(--line);border-radius:12px;padding:12px 14px 8px;background:rgba(255,255,255,.015)}
 .card.next{border-color:rgba(191,151,73,.6);background:rgba(191,151,73,.04)}
 .card.done{opacity:.45}
 .top{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
-.name{font-family:"Inter",sans-serif;font-weight:700;font-size:19px;letter-spacing:-.02em;color:var(--gold-hi);text-decoration:none;border-bottom:1px solid transparent;transition:border-color .15s}
+.name{font-family:"Inter",sans-serif;font-weight:700;font-size:16px;letter-spacing:-.02em;color:var(--gold-hi);text-decoration:none;border-bottom:1px solid transparent;transition:border-color .15s}
 .name:hover,.name:focus-visible{border-bottom-color:var(--gold);outline:none}
 .card.done .name{color:var(--ink-2)}
-.time{font-family:"Inter",sans-serif;font-weight:500;font-size:12px;letter-spacing:.14em;color:var(--ink-2);white-space:nowrap}
+.time{font-family:"Inter",sans-serif;font-weight:500;font-size:11px;letter-spacing:.12em;color:var(--ink-2);white-space:nowrap}
 .tag{display:inline-block;margin-left:8px;font-size:10px;letter-spacing:.18em;color:var(--gold);border:1px solid rgba(191,151,73,.45);border-radius:999px;padding:2px 8px;vertical-align:3px;font-family:"Inter",sans-serif;font-weight:500;text-transform:uppercase}
-ol{list-style:none;margin-top:12px;counter-reset:n}
-li{counter-increment:n;display:grid;grid-template-columns:22px 1fr;gap:4px;font-size:14.5px;line-height:1.5;color:var(--ink);padding:5px 0}
+ol{list-style:none;margin-top:6px;counter-reset:n}
+li{counter-increment:n;display:grid;grid-template-columns:16px 1fr;gap:2px;font-size:13px;line-height:1.38;color:var(--ink);padding:3px 0}
 li+li{border-top:1px solid rgba(255,255,255,.04)}
-li::before{content:counter(n);font-family:"Inter",sans-serif;font-weight:700;font-size:13px;color:var(--gold);padding-top:2px}
+li::before{content:counter(n);font-family:"Inter",sans-serif;font-weight:700;font-size:12px;color:var(--gold);padding-top:1px}
 .empty{text-align:center;color:var(--ink-2);font-size:15px;line-height:1.6;margin-top:26px;border:1px dashed var(--line);border-radius:14px;padding:22px}
-.foot{text-align:center;font-size:11px;color:var(--ink-3);margin-top:20px;letter-spacing:.04em}
+.foot{text-align:center;font-size:11px;color:var(--ink-3);margin-top:12px;letter-spacing:.04em}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
