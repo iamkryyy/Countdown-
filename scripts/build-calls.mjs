@@ -77,6 +77,24 @@ function todaysCalls(parsed, today) {
     .filter((c) => { const k = c.start + c.guest.email; if (seen.has(k)) return false; seen.add(k); return true; });
 }
 
+// Google Apps Script feed (JSON) -> same shape node-ical produces.
+const GUEST_STATUS = { YES: "ACCEPTED", OWNER: "ACCEPTED", NO: "DECLINED", MAYBE: "TENTATIVE", INVITED: "NEEDS-ACTION" };
+function fromScriptFeed(text) {
+  const j = JSON.parse(text);
+  if (j.error) throw new Error("Calendar script refused the request: " + j.error);
+  const out = {};
+  (j.events || []).forEach((ev, i) => {
+    const att = (ev.guests || []).map((g) => ({ val: "mailto:" + g.email, params: { PARTSTAT: GUEST_STATUS[g.status] || "NEEDS-ACTION" } }));
+    if (ev.myStatus === "NO") att.push({ val: "mailto:" + ME, params: { PARTSTAT: "DECLINED" } });
+    out["e" + i] = {
+      type: "VEVENT", summary: ev.title || "", description: ev.description || "",
+      start: new Date(ev.start), end: new Date(ev.end), datetype: ev.allDay ? "date" : "date-time",
+      attendee: att.length ? att : undefined,
+    };
+  });
+  return out;
+}
+
 // ---------- notion ----------
 async function notion(path, method = "GET", body) {
   const r = await fetch("https://api.notion.com/v1" + path, {
@@ -224,8 +242,8 @@ async function main() {
 
   const icsRes = await fetch(ENV.ICAL_URL);
   if (!icsRes.ok) throw new Error("Calendar feed -> " + icsRes.status);
-  const icsText = await icsRes.text();
-  const parsed = ical.sync.parseICS(icsText);
+  const feedText = await icsRes.text();
+  const parsed = feedText.trim().startsWith("{") ? fromScriptFeed(feedText) : ical.sync.parseICS(feedText);
   const all = Object.values(parsed).filter((e) => e && e.type === "VEVENT");
   const todayAll = all.flatMap((e) => occurrencesToday(e, today));
   log(`feed: ${all.length} events total, ${all.filter((e) => e.attendee).length} with guest lists, ` +
@@ -234,8 +252,9 @@ async function main() {
       `${todayAll.filter((e) => e.attendee).length} with guests`);
   const events = todaysCalls(parsed, today);
   log(`${events.length} call(s) on ${today}`);
-  if (!events.length && all.length > 20 && !all.some((e) => e.attendee)) {
-    throw new Error("Calendar feed has no guest lists at all. It is probably the public/busy-only address, not the secret iCal address. Leaving the widget unchanged.");
+  const busyOnly = all.length > 10 && all.every((e) => /^busy$/i.test(String(e.summary || "").trim()));
+  if (!events.length && (busyOnly || (all.length > 20 && !all.some((e) => e.attendee)))) {
+    throw new Error("Calendar feed only shows free/busy, not event details. Leaving the widget unchanged.");
   }
 
   const calls = [];
