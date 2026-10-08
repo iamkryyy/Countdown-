@@ -87,7 +87,8 @@ async function load(){
   const key = new URLSearchParams(location.hash.slice(1)).get("k");
   if (!key) return show(null, "This widget needs its private key. Use the full embed link from your setup.");
   try{
-    const res = await fetch("data.json?t=" + Date.now(), {cache:"no-store"});
+    let res = await fetch("https://raw.githubusercontent.com/iamkryyy/Countdown-/main/calls/data.json?t=" + Date.now(), {cache:"no-store"}).catch(() => null);
+    if (!res || !res.ok) res = await fetch("data.json?t=" + Date.now(), {cache:"no-store"});
     if (!res.ok) throw new Error("fetch");
     const box = await res.json();
     const ck = await crypto.subtle.importKey("raw", b64ToBytes(key), "AES-GCM", false, ["decrypt"]);
