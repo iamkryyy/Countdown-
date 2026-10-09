@@ -60,14 +60,19 @@ function todaysCalls(parsed, today) {
       if ((inst.status || "").toUpperCase() === "CANCELLED" || /^cancel/i.test(summary)) continue;
       const att = attendeesOf(inst);
       if (att.find((a) => a.email === ME && a.status === "DECLINED")) continue;
-      const guests = att.filter((a) => a.email !== ME && a.status !== "DECLINED");
-      if (!guests.length) continue;
+      // A declined Google invite is NOT a cancellation (Calendly deletes cancelled
+      // events). Keep the call and flag it, so it never silently disappears.
+      const others = att.filter((a) => a.email !== ME);
+      if (!others.length) continue;
+      const live = others.filter((a) => a.status !== "DECLINED");
+      const guests = live.length ? live : others;
       calls.push({
         start: new Date(inst.start).toISOString(),
         end: inst.end ? new Date(inst.end).toISOString() : null,
         summary,
         description: String(inst.description || ""),
         guest: guests[0],
+        guestDeclined: !live.length,
       });
     }
   }
@@ -107,20 +112,54 @@ async function notion(path, method = "GET", body) {
 }
 const plain = (rt) => (rt || []).map((t) => t.plain_text || "").join("");
 
-async function findClient(email) {
-  const j = await notion(`/databases/${CLIENT_DB}/query`, "POST", {
-    filter: { property: "Email", email: { equals: email } }, page_size: 5,
+// Clients often book with a different email than the one in Client Master,
+// so match by email first, then by name. Never guess: a name match must be an
+// exact full name, or a first name that only one client has.
+let clientCache = null;
+async function allClients() {
+  if (clientCache) return clientCache;
+  const out = [];
+  let cursor;
+  for (let i = 0; i < 20; i++) {
+    const j = await notion(`/databases/${CLIENT_DB}/query`, "POST", { page_size: 100, ...(cursor ? { start_cursor: cursor } : {}) });
+    out.push(...(j.results || []));
+    if (!j.has_more) break;
+    cursor = j.next_cursor;
+  }
+  clientCache = out.map((page) => {
+    const p = page.properties || {};
+    return {
+      id: page.id,
+      url: page.url,
+      name: plain(p["Client"]?.title).trim(),
+      email: String(p["Email"]?.email || "").trim().toLowerCase(),
+      status: p["Status"]?.select?.name || "",
+      movers: plain(p["Next Call Needle Movers"]?.rich_text),
+      recording: p["Last Call Recording"]?.url || "",
+    };
   });
-  const page = (j.results || [])[0];
-  if (!page) return null;
-  const p = page.properties || {};
-  return {
-    id: page.id,
-    url: page.url,
-    name: plain(p["Client"]?.title).trim(),
-    movers: plain(p["Next Call Needle Movers"]?.rich_text),
-    recording: p["Last Call Recording"]?.url || "",
-  };
+  log(`Client Master: ${clientCache.length} clients loaded`);
+  return clientCache;
+}
+const nameKey = (s) => String(s || "").toLowerCase().replace(/[^a-z ]+/g, " ").replace(/\s+/g, " ").trim();
+async function findClient(email, names) {
+  const clients = await allClients();
+  const byEmail = clients.find((c) => c.email && c.email === email);
+  if (byEmail) return { ...byEmail, matchedBy: "email" };
+  const cands = [...new Set(names.map(nameKey).filter(Boolean))];
+  for (const n of cands) {
+    if (n.split(" ").length < 2) continue;
+    const hits = clients.filter((c) => nameKey(c.name) === n);
+    if (hits.length === 1) return { ...hits[0], matchedBy: "name" };
+  }
+  for (const n of cands) {
+    const first = n.split(" ")[0];
+    if (first.length < 3) continue;
+    const pool = clients.filter((c) => c.status === "Active");
+    const hits = pool.filter((c) => nameKey(c.name).split(" ")[0] === first);
+    if (hits.length === 1) return { ...hits[0], matchedBy: "first name" };
+  }
+  return null;
 }
 
 async function saveMovers(pageId, movers, recordingUrl, recordedAt) {
@@ -180,23 +219,23 @@ async function recentMeetings() {
   return all;
 }
 const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9@.]+/g, " ").trim();
-function meetingIncludes(m, email, name) {
+function meetingIncludes(m, emails, name) {
   const inv = m.calendar_invitees || m.invitees || [];
-  const em = email.toLowerCase();
-  if (inv.some((i) => String(i.email || "").toLowerCase() === em)) return true;
+  const ems = [].concat(emails).filter(Boolean).map((e) => e.toLowerCase());
+  if (inv.some((i) => ems.includes(String(i.email || "").toLowerCase()))) return true;
   const n = norm(name);
   if (n.split(" ").length < 2) return false; // need a full name to match safely
   if (inv.some((i) => norm(i.name) === n)) return true;
   return norm(m.title || m.meeting_title).includes(n);
 }
-async function lastFathomCall(email, name, before) {
+async function lastFathomCall(emails, name, before) {
   const meetings = await recentMeetings();
   let best = null;
   for (const m of meetings) {
     const when = m.recording_start_time || m.scheduled_start_time || m.created_at;
     if (!when || new Date(when) >= new Date(before)) continue;
     if (/group call/i.test(m.title || m.meeting_title || "")) continue;
-    if (!meetingIncludes(m, email, name)) continue;
+    if (!meetingIncludes(m, emails, name)) continue;
     if (!best || new Date(when) > new Date(best.when)) best = { ...m, when };
   }
   if (!best) return null;
@@ -312,18 +351,25 @@ async function main() {
   for (const ev of events) {
     const out = { start: ev.start, end: ev.end, name: "", type: "1-on-1", url: "", movers: [] };
     try {
-      const client = await findClient(ev.guest.email);
-      if (!client) {
+      const guessName = nameFromSummary(ev.summary, ev.guest);
+      const client = await findClient(ev.guest.email, [guessName, ev.guest.cn]);
+      const clientBooking = /1\s*-?\s*on\s*-?\s*1|1% academy/i.test(ev.description);
+      if (!client && clientBooking) {
+        out.name = guessName;
+        out.movers = [`Booked as a client call, but ${ev.guest.email} isn't in Client Master. Add this email to his client page.`];
+        log("client booking with no Client Master match");
+      } else if (!client) {
         out.type = "Sales";
-        out.name = nameFromSummary(ev.summary, ev.guest);
+        out.name = guessName;
         out.movers = salesMovers(ev.description);
       } else {
+        if (client.matchedBy !== "email") log(`matched one client by ${client.matchedBy} (calendar email differs from Client Master)`);
         out.name = client.name || nameFromSummary(ev.summary, ev.guest);
         out.url = client.url;
         out.movers = parseMovers(client.movers);
         if (ENV.FATHOM_API_KEY && ENV.ANTHROPIC_API_KEY) {
           try {
-            const last = await lastFathomCall(ev.guest.email, out.name, ev.start);
+            const last = await lastFathomCall([ev.guest.email, client.email], out.name, ev.start);
             if (last && last.url && !last.urls.includes(client.recording)) {
               out.movers = await makeMovers(out.name, last, clientFormNotes(ev.description));
               await saveMovers(client.id, out.movers, last.url, last.when);
@@ -338,6 +384,7 @@ async function main() {
       out.name = out.name || nameFromSummary(ev.summary, ev.guest);
       if (!out.movers.length) out.movers = ["Couldn't load prep for this call. Check the run log."];
     }
+    if (ev.guestDeclined) out.movers = ["Heads up: he declined the Google invite. Confirm he's still on.", ...out.movers].slice(0, 5);
     calls.push(out);
   }
 
