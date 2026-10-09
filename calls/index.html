@@ -129,7 +129,7 @@ function show(data, error){
       ? `<a class="name" href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.name)}</a>`
       : `<span class="name">${esc(c.name)}</span>`;
     const tag = c.type === "Sales" ? `<span class="tag">Sales</span>` : "";
-    const items = (c.movers || []).slice(0,4).map(m => `<li>${esc(m)}</li>`).join("");
+    const items = (c.movers || []).slice(0,5).map(m => `<li>${esc(m)}</li>`).join("");
     card.innerHTML = `<div class="top"><div>${nameHtml}${tag}</div><span class="time">${fmtTime(c.start)}</span></div><ol>${items}</ol>`;
     list.appendChild(card);
   });
