@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>The Deadline · Project 120</title>
+<!-- Project 120 theme. Loads the live widget (index.html) and re-skins it, so any
+     future fix to the original widget shows up here automatically.
+     ?look=white (default) or ?look=cream -->
+<script>(function(){var c=(new URLSearchParams(location.search).get("look")||"").toLowerCase()==="cream"?"#F5F0E8":"#FFFFFF";document.write('<style>html,body{background:'+c+';margin:0}</style>');})();</script>
+</head>
+<body>
+<script>
+(function () {
+  var CSS = "<style>\n  /* Project 120 theme: white foundation, near-black ink, Project 120 red. */\n  :root {\n    --bg: #FFFFFF;\n    --white: #111111;              /* main ink (kept var name so the script still works) */\n    --red: #E5161E;\n    --gold: #E5161E;               /* every former gold accent becomes red */\n    --gold-held: rgba(229, 22, 30, 0.32);\n    --muted: #8C8780;\n    --hair: rgba(17, 17, 17, 0.12);\n  }\n  html[data-look=\"cream\"] { --bg: #F5F0E8; --hair: rgba(17,17,17,.14); --muted: #8A8278; }\n  .unit.days .num { background: none; color: var(--red); -webkit-background-clip: border-box; background-clip: border-box; }\n  .unit.days::after { background: radial-gradient(ellipse at center, rgba(229,22,30,.08) 0%, rgba(229,22,30,0) 70%); }\n  .rule { height: 2px; background: var(--red); width: clamp(40px, 7vw, 80px); border-radius: 2px; }\n  .status { background: none; color: var(--red); -webkit-background-clip: border-box; background-clip: border-box; }\n  @keyframes land {\n    0%   { opacity: 0; transform: translateY(4px); }\n    100% { opacity: 1; transform: none; }\n  }\n</style>\n";
+  var LOOKS = '<script>(function(){var l=(new URLSearchParams(location.search).get("look")||"white").toLowerCase();document.documentElement.setAttribute("data-look",l==="cream"?"cream":"white");})();<\/script>';
+  fetch("index.html", { cache: "no-cache" })
+    .then(function (r) { if (!r.ok) throw 0; return r.text(); })
+    .then(function (h) {
+      h = h.replace(/<\/style>\s*<\/head>/, "</style>\n" + CSS + LOOKS + "\n</head>");
+      document.open(); document.write(h); document.close();
+    })
+    .catch(function () { document.body.textContent = "Couldn\u2019t load the widget. Refresh to try again."; });
+})();
+</script>
+</body>
+</html>
