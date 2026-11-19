@@ -136,6 +136,7 @@ async function allClients() {
       status: p["Status"]?.select?.name || "",
       movers: plain(p["Next Call Needle Movers"]?.rich_text),
       recording: p["Last Call Recording"]?.url || "",
+      overview: plain(p["Call Prep Overview"]?.rich_text),
     };
   });
   log(`Client Master: ${clientCache.length} clients loaded`);
