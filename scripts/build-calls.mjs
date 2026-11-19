@@ -402,6 +402,7 @@ async function main() {
       if (!out.movers.length) out.movers = ["Couldn't load prep for this call. Check the run log."];
     }
     if (ev.guestDeclined) out.movers = ["Heads up: he declined the Google invite. Confirm he's still on.", ...out.movers].slice(0, 5);
+    if (ev.guestDeclined && out.prep) out.prep.before = ["Heads up: he declined the Google invite. Confirm he's still on.", ...out.prep.before];
     calls.push(out);
   }
 
