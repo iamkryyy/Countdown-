@@ -339,7 +339,10 @@ async function encrypt(obj) {
 // ---------- main ----------
 async function main() {
   for (const k of ["ICAL_URL", "NOTION_TOKEN", "CALLS_KEY"]) if (!ENV[k]) throw new Error(`Missing secret ${k}`);
-  const now = new Date(), today = dayKey(now);
+  const now = new Date();
+  // PREVIEW_DAY (YYYY-MM-DD, manual runs only) builds another day and only logs counts.
+  const preview = /^\d{4}-\d{2}-\d{2}$/.test(ENV.PREVIEW_DAY || "") ? ENV.PREVIEW_DAY : "";
+  const today = preview || dayKey(now);
   if (fromB64u(ENV.CALLS_KEY.trim().replace(/^k=/, "")).length !== 32) throw new Error("CALLS_KEY is the wrong value. Re-paste it exactly from the setup instructions.");
 
   const icsRes = await fetch(ENV.ICAL_URL.trim());
