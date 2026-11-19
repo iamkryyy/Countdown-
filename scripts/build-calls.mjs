@@ -403,6 +403,15 @@ async function main() {
     calls.push(out);
   }
 
+  if (preview) {
+    log(`preview ${today}: ${calls.length} call(s); ` + calls.map((c, i) =>
+      `#${i + 1} ${c.type}${c.url ? " client" : ""}, ` +
+      (c.prep ? `prep ready, ${c.prep.movers.length} needle mover(s), ${c.prep.before.length} before-call item(s)` : `no prep overview, ${c.movers.length} auto mover(s)`)
+    ).join("; "));
+    log("preview only: data.json not changed");
+    return;
+  }
+
   const payload = { date: today, calls };
   const hash = createHash("sha256").update(JSON.stringify(payload)).digest("hex");
   const prev = fs.existsSync(HASH) ? fs.readFileSync(HASH, "utf8").trim() : "";
