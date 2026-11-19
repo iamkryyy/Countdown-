@@ -382,6 +382,8 @@ async function main() {
         out.name = client.name || nameFromSummary(ev.summary, ev.guest);
         out.url = client.url;
         out.movers = parseMovers(client.movers);
+        const prep = parseOverview(client.overview, today);
+        if (prep) { out.prep = prep; log("call prep overview found for one client"); }
         if (ENV.FATHOM_API_KEY && ENV.ANTHROPIC_API_KEY) {
           try {
             const last = await lastFathomCall([ev.guest.email, client.email], out.name, ev.start);
