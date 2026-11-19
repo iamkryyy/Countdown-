@@ -173,6 +173,17 @@ async function saveMovers(pageId, movers, recordingUrl, recordedAt) {
   });
 }
 
+// "Call Prep Overview" is written by the nightly 8 PM call prep:
+//   For: 2026-11-19 / Needle mover: ... (1-2) / Before the call: ... (0-2)
+// Only used on the day it is for.
+function parseOverview(txt, day) {
+  const lines = String(txt || "").split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  const m = lines.length && lines[0].match(/^for\s*:?\s*(\d{4}-\d{2}-\d{2})/i);
+  if (!m || m[1] !== day) return null;
+  const grab = (re, n) => lines.filter((l) => re.test(l)).map((l) => l.replace(re, "").trim()).filter(Boolean).slice(0, n);
+  return { movers: grab(/^needle\s*movers?\s*:\s*/i, 2), before: grab(/^before\s+the\s+call\s*:\s*/i, 2) };
+}
+
 const parseMovers = (txt) =>
   String(txt || "").split(/\n+/).map((l) => l.replace(/^\s*\d+[.)]\s*/, "").trim()).filter(Boolean).slice(0, 4);
 
